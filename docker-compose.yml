@@ -1,0 +1,157 @@
+# docker-compose up --build
+# Developer and maintainer, Stephen D. Scotti, M.D. - sscotti@sscotti.org
+# Github Developer Collaborator hieutnbk2011 for Docker
+# ~/.git-credentials is where user & pass are if using helper
+# MWL's are now stored in common folder, MWL at root of package.
+# OrthancStorage, OrthancIndex and MySQL_DB Folders should be deleted or missing when running a fresh install
+# Docker will create all of those folders and Init the Databases Automatically.
+# NGINX takes a minute or 2 to start
+# Default user is allprofiles@orthanc.test, Testing!1
+
+
+
+version: "3.4"
+
+services:
+
+  nginx:
+    build: php-fpm-nginx
+    image: sdscotti/portaldemo
+    depends_on: [mysql_db]
+    restart: unless-stopped
+    ports: ["443:443"]
+    volumes:
+       - ./nginx-home:/nginx-home      # NGINX web directories
+       - ./nginx-logs:/var/log/nginx   # NGINX log directory
+       - ./tls:/etc/nginx/tls          # NGINX ssl certs path
+       - ./php-fpm-nginx/default.conf:/etc/nginx/conf.d/default.conf  # NGINX .conf
+       # bind default.conf so it can be edited on the host and nginx just reloaded instead of rebuilding the container.
+       
+  pacs:
+      build: pacs
+      image: sdscotti/pacsdemo
+      depends_on: [postgres_index-db]
+      restart: unless-stopped
+      ports: ["4444:4242","8042:8042"] # /etc/orthanc on container has .json and logs folder, /usr/share/orthanc/plugins & plugins-disabled
+      volumes: ["./OrthancStorage:/var/lib/orthanc/OrthancStorage","./MWL:/var/lib/orthanc/worklists", "./pacs/python:/python","./pacs/lua:/lua-scripts", "./orthanc-logs:/etc/orthanc/logs","./pacs/orthanc.json:/etc/orthanc/orthanc.json"]
+      environment:
+          #TZ: "Europe/Paris"
+          VERBOSE_ENABLED: "true"
+          VERBOSE_STARTUP: "true"
+          TRACE_ENABLED: "true"
+          # AUTHORIZATION_PLUGIN_ENABLED: "false" DEPRECATED, USE OTHER METHOD
+          CONNECTIVITY_CHECKS_PLUGIN_ENABLED: "true"
+          ORTHANC__AUTHENTICATION_ENABLED: "false"
+          ORTHANC__NAME: "DEMO"
+          ORTHANC__DICOM_SERVER_ENABLED: "true"
+          ORTHANC__DICOM_AET: "DEMO"
+          # MWL WORKLISTS -> "/var/lib/orthanc/worklists"
+          WORKLISTS_PLUGIN_ENABLED: "true"
+          # PYTHON
+          ORTHANC__PYTHON_SCRIPT: "/python/combined.py"
+          ORTHANC__PYTHON_VERBOSE: "true"
+          # OSIMIS VIEWER
+          OSIMIS_WEB_VIEWER1_PLUGIN_ENABLED: "true"
+          # STONE VIEWER
+          # you must enable the StoneViewer and the DicomWeb plugins
+          STONE_WEB_VIEWER_PLUGIN_ENABLED: "true"
+          DICOM_WEB_PLUGIN_ENABLED: "true"
+          ORTHANC__STONE_WEB_VIEWER__DATE_FORMAT: "DD/MM/YYYY"
+
+          # POSTGRES
+          ORTHANC__POSTGRESQL__PASSWORD: "postgres"
+          ORTHANC__POSTGRESQL__HOST: "postgres_index-db"
+        
+          
+  # Postgres Service For pacs
+  postgres_index-db:
+      image: postgres
+      ports: ["5555:5432"]
+      restart: unless-stopped
+      volumes:
+          - ./OrthancIndex:/var/lib/postgresql/data
+      environment:
+          POSTGRES_PASSWORD: "postgres"
+          
+  #MySQL Service for NGINX Web & any other databases.
+  mysql_db:
+    image: mysql
+    container_name: mysql_db
+    command: 
+        --default-authentication-plugin=mysql_native_password
+        --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+        --max-allowed-packet=67108864
+    restart: unless-stopped
+    ports: ["3333:3306"]
+    security_opt:
+    - seccomp:unconfined
+    tty: true
+    environment:
+      MYSQL_ROOT_PASSWORD: 'root'
+      MYSQL_USER: 'demo'
+      MYSQL_PASSWORD: 'demo'
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - ./MySQL_DB:/var/lib/mysql/
+      - ./mysql_init:/docker-entrypoint-initdb.d
+      #- ./mysql/my.cnf:/etc/mysql/my.cnf
+      
+      
+  #PHP MyAdmin, you can also use nginx to control access.  Kind of a convenience item.
+  php_myadmin:
+      depends_on:
+       - mysql_db
+      image: phpmyadmin/phpmyadmin
+      container_name: phpmyadmin
+      restart: always
+      ports:
+       - '11080:80'
+      environment:
+        PMA_HOST: mysql_db
+        UPLOAD_LIMIT: 4096M
+        
+#  MPPS testing server, DICOM, port 104 on host
+
+  python_mpps:
+ 
+   build: python_mpps
+   image: sdscotti/python_mpps
+   depends_on: [mysql_db,pacs]
+   ports: ["104:11112"]
+   volumes:
+      - type: bind
+        source: ./python_mpps/scripts_log
+        target: /scripts
+      - type: bind
+        source: ./tls
+        target: /etc/python/tls
+      - type: bind
+        source: ./MWL
+        target: /MWL
+   
+#  MWL server, REST API, uses Flask for now for API calls, port 5000
+
+  python_mwl_api:
+ 
+    build: python_mwl_api
+    image: sdscotti/python_mwl_api
+    depends_on: [mysql_db,pacs]
+    ports: ["5000:5000"]
+    environment:
+      PORT: 5000
+      FLASK_DEBUG: 1
+      FLASK_ENV: development
+    volumes:
+      - type: bind
+        source: ./python_mwl_api/scripts_log
+        target: /scripts
+      - type: bind
+        source: ./tls
+        target: /etc/python/tls
+      - type: bind
+        source: ./MWL
+        target: /MWL
+        
+#  https://hub.docker.com/r/qvera/qie
+        

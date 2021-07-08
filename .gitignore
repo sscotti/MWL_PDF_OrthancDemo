@@ -1,0 +1,7 @@
+# New Install Creates these
+
+/MySQL_DB/**
+/MWL/**
+/OrthancIndex/**
+/OrthancStorage/**
+.DS_Store
