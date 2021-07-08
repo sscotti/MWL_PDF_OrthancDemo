@@ -17,11 +17,14 @@ To get started:
 1.  Clone or Download the package.
 2.  Being a composer and Node / NPM package for the Laravel application, you'll need composer and NPM installed on your system.
 
-    Composer Link:  https://getcomposer.org/download/
+    Composer Link:  https://getcomposer.org/download
     Node.js & NPM:  https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
     
     In order to use composer you'll also need php on your system to run artisan commands and composer itself.  Composer and NPM are not setup on the containers,
-    so for now you'll have to run composer and node on the host system, mostly if you are interested in using the Laravel Portal.  Navigate to:  nginx-home/laravel
+    so for now you'll have to run composer and node on the host system, mostly if you are interested in using the Laravel Portal.  Navigate to:
+    
+    ```nginx-home/laravel```
+    
     to run composer update and npm.  Since vendor and node_modules are ignored my github you'll need to run those to update the package, although node is not really
     used at this point.  In the future, I may add composer to the docker container for convenience, but it is actually convenient to be able to run that from the host
     also.
@@ -30,15 +33,24 @@ To get started:
 
 4.  Copy / Rename PACS_Integration/php-fpm-nginx/default.conf.example.conf to default.conf.  That is the config for nginx.
 
-4.  Navigate to the root of the package and run:  docker-compose up --build (-d), and it should build and initialize in not too much time, including creation
-    and population of some test databases, located in /MySQL_DB, /OrthancIndex and /OrthancStorage.  Orthanc should be accessible through both the NGINX proxy
-    and localhost 8042, with the SSC set to orthanc.test domain.  So the Portal is at https://orthanc.test and Orthanc through http://orthanc.test:8042 or
-    https://orthanc.test/pacs, proxied.
+4.  Navigate to the root of the package and run:
+```
+docker-compose up --build (-d)
+```
+and it should build and initialize in not too much time, including creation and population of some test databases, located in:
+```
+/MySQL_DB
+/OrthancInde
+/OrthancStorage
+```
+Orthanc should be accessible through both the NGINX proxy and localhost 8042, with the SSC set to orthanc.test domain.  So the Portal is at https://orthanc.test and Orthanc through http://orthanc.test:8042 or https://orthanc.test/pacs, proxied.
 
 I'll provide additional details later, but the python scripts are heavily commented:
-
+```
 PACS_Integration/python_mwl_api/scripts_log/api.py
 PACS_Integration/python_mpps/scripts_log/mpps.py
 PACS_Integration/pacs/python/combined.py
+```
+I would recommend trying to get the Portal working because there are some dev tools and demos available through that.  Configured user is:
 
-I would recommend trying to get the Portal working because there are some dev tools and demos available through that.  Configured user is:  allprofiles@orthanc.test / Testing!1 after pointing https://orthanc.test to your docker host IP.
+allprofiles@orthanc.test / Testing!1 after pointing https://orthanc.test to your docker host IP.
