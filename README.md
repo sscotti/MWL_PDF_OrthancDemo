@@ -54,3 +54,5 @@ PACS_Integration/pacs/python/combined.py
 I would recommend trying to get the Portal working because there are some dev tools and demos available through that.  Configured user is:
 
 allprofiles@orthanc.test / Testing!1 after pointing https://orthanc.test to your docker host IP.
+
+NOTE:  There are some anonymized test studies in 'test_studies' that can be uploaded to Orthanc via Explorer if you can get it running.  That'll populate Orthanc will a few studies to demo how the portal works.
