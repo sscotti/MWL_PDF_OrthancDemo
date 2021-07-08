@@ -26,7 +26,9 @@ To get started:
     used at this point.  In the future, I may add composer to the docker container for convenience, but it is actually convenient to be able to run that from the host
     also.
     
-3.  Change or copy .env.example to .env in the laravel folder
+3.  Copy / Rename .env.example to .env in the laravel folder
+
+4.  Copy / Rename PACS_Integration/php-fpm-nginx/default.conf.example.conf to default.conf.  That is the config for nginx.
 
 4.  Navigate to the root of the package and run:  docker-compose up --build (-d), and it should build and initialize in not too much time, including creation
     and population of some test databases, located in /MySQL_DB, /OrthancIndex and /OrthancStorage.  Orthanc should be accessible through both the NGINX proxy
