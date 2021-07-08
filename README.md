@@ -29,4 +29,14 @@ To get started:
 3.  Change or copy .env.example to .env in the laravel folder
 
 4.  Navigate to the root of the package and run:  docker-compose up --build (-d), and it should build and initialize in not too much time, including creation
-    and population of some test databases, located in /MySQL_DB, /OrthancIndex and /OrthancStorage.  You may need to 
+    and population of some test databases, located in /MySQL_DB, /OrthancIndex and /OrthancStorage.  Orthanc should be accessible through both the NGINX proxy
+    and localhost 8042, with the SSC set to orthanc.test domain.  So the Portal is at https://orthanc.test and Orthanc through http://orthanc.test:8042 or
+    https://orthanc.test/pacs, proxied.
+
+I'll provide additional details later, but the python scripts are heavily commented:
+
+PACS_Integration/python_mwl_api/scripts_log/api.py
+PACS_Integration/python_mpps/scripts_log/mpps.py
+PACS_Integration/pacs/python/combined.py
+
+I would recommend trying to get the Portal working because there are some dev tools and demos available through that.  Configured user is:  allprofiles@orthanc.test / Testing!1 after pointing https://orthanc.test to your docker host IP.
