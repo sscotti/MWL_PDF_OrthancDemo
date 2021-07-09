@@ -150,8 +150,11 @@ MY_DB = None # DB Connection, fetched via get_DB method
 
 def get_DB():
     global MY_DB
+    user = os.getenv('MYSQL_USER','')
+    password = os.getenv('MYSQL_PASSWORD','')
+    database = os.getenv('DATABASE','')
     try:
-        MY_DB = mysql.connector.connect(host="mysql_db", port = 3306, user="demo",password="demo",database="orthanc_ris")
+        MY_DB = mysql.connector.connect(host="mysql_db", port = 3306, user=user,password=password,database=database)
         return MY_DB
 
     except mysql.connector.Error as err:
