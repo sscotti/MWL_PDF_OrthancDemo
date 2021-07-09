@@ -8,6 +8,19 @@
 # NGINX takes a minute or 2 to start
 # Default user is allprofiles@orthanc.test, Testing!1
 
+# USERNAME = os.getenv('NAME_OF_ENV_VARIABLE','default_value_if_no_env_var_is_set')
+# USERNAME = os.getenv('USERNAME', 'test')
+#
+#Then you can create a docker-compose.yml file to run your dockerfile with:
+#
+#version: '2'
+#services:
+#  python-container:
+#    image: python-image:latest
+#    environment:
+#      - USERNAME=test
+#      - PASSWORD=12345
+
 
 
 version: "3.4"
