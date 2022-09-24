@@ -1,0 +1,127 @@
+# Developer and maintainer, Stephen D. Scotti, M.D. - sscotti@sscotti.org or sscotti@sias.dev
+#  https://github.com/sscotti
+
+# USERNAME = os.getenv('NAME_OF_ENV_VARIABLE','default_value_if_no_env_var_is_set')
+# USERNAME = os.getenv('USERNAME', 'test')
+#
+version: "3.4"
+
+services:
+
+  orthanc:
+    build: orthanc  # comment out to use the built image
+    depends_on:
+      - postgres_index-db
+      - mysql_db
+    restart: unless-stopped
+    ports:
+      - "4242:4242" # /etc/orthanc on container has .json and logs folder, /usr/share/orthanc/plugins & plugins-disabled
+      - "8042:8042"
+    volumes:
+      - ./OrthancStorage:/var/lib/orthanc/OrthancStorage
+      - ./MWL:/var/lib/orthanc/worklists
+      - ./orthanc_python:/python
+      - ./orthanc_lua:/lua-scripts
+      - ./orthanc-logs:/etc/orthanc/logs
+      - ./orthanc/orthanc.json:/etc/orthanc/orthanc.json
+      - ./tls_dicom:/etc/orthanc/tls_dicom
+      - ./ServeFolders:/development
+      
+    environment:
+      ORTHANC__NAME: "PACS"
+      ORTHANC__DICOM_AET: "PACS"
+      ORTHANC__DATABASE_SERVER_IDENTIFIER: "PACS"
+      # POSTGRES & MYSQL
+      ORTHANC__POSTGRESQL__HOST: "postgres_index-db"
+      ORTHANC__LUA_SCRIPTS: '["/lua-scripts/PACS_OnStoredInstance.lua"]'
+      ORTHANC__EXPLORER_2__ROOT: "/pacs/"
+      
+    env_file:
+    - ./config/.env
+    - ./config/.env_pacs
+
+  #Postgres Service
+  postgres_index-db:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    volumes:
+      - ./OrthancIndex:/var/lib/postgresql/data
+#      - type: tmpfs
+#        target: /var/lib/postgresql/data/pg_stat_tmp
+#        tmpfs:
+#          # 256 Mb - beware the default, it's infinity(!)
+#          size: 268435456
+    # fixes this WARNING:  could not open statistics file "pg_stat_tmp/global.stat": Operation not permitted 
+    command:  docker-entrypoint.sh -c 'stats_temp_directory=/tmp' -c 'autovacuum=on' -c 'track_counts=on' 
+    env_file:
+    - ./config/.env
+
+
+  #MySQL Service for NGINX Web & any other databases.
+  mysql_db:
+    # use the image below for amd arch
+    image: mysql:8.0.29
+    # image: mysql/mysql-server:8.0.29-1.2.8-server-amd64
+    # use the image below for M1 Mac
+    # image: mysql/mysql-server:8.0.29-1.2.8-server-aarch64
+
+    container_name: mysql_db
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      --max-allowed-packet=67108864
+      --disable-log-bin
+      --general-log=OFF
+      --binlog_expire_logs_seconds=259200
+      #--general-log-file=/var/lib/mysql/mysql-log.log
+    restart: unless-stopped
+    ports:
+      - "3333:3306"
+    healthcheck:
+      test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
+    security_opt:
+      - seccomp:unconfined
+    tty: true
+    environment:
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    env_file:
+    - ./config/.env
+
+    volumes:
+      - ./MySQL_DB:/var/lib/mysql/
+      - ./mysql_init:/docker-entrypoint-initdb.d
+
+  #PHP MyAdmin, you can also use nginx to redirect it.
+
+  php_myadmin:
+    depends_on:
+      - mysql_db
+    image: phpmyadmin:latest
+    # image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    restart:  unless-stopped
+    ports:
+      - "11080:80"
+    environment:
+      PMA_HOST: mysql_db
+      UPLOAD_LIMIT: 4096M
+      MAX_EXECUTION_TIME: 4000
+      # MEMORY_LIMIT: 1024M
+
+
+#  Add container for PgAdmin
+
+  pgadmin:
+    depends_on:
+      - postgres_index-db
+    container_name: pgadmin4_container
+    image: dpage/pgadmin4
+    restart:  unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: sscotti@sias.dev
+      PGADMIN_DEFAULT_PASSWORD: postgres
+    ports:
+      - "5050:80"

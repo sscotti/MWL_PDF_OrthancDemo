@@ -1,0 +1,219 @@
+{
+	"KeepAlive" : true,
+	"TcpNoDelay" : true,
+	"DicomThreadsCount": 16,
+	"DicomAlwaysAllowFindWorklist": true,
+	"DicomAlwaysAllowFind": true,
+    "LimitJobs" : 50,
+    "ConcurrentJobs" : 4,
+    "JobsHistorySize" : 50,
+    "SaveJobs" : true,
+    "StorageAccessOnFind": "Never",
+	// Deidentify/anonymize the contents of the logs (notably C-FIND,
+	// C-GET, and C-MOVE queries submitted to Orthanc) according to
+	// Table E.1-1 of the DICOM standard (new in Orthanc 1.8.2)
+
+	"DeidentifyLogs" : false,
+	"DeidentifyLogsDicomVersion" : "2021b",
+    
+    // openssl req -x509 -nodes -newkey rsa:4096 -keyout key.pem -out cert.pem -days 3650
+    // openssl pkcs12 -export -clcerts -inkey  key.pem -in cert.pem -out key.p12 -name "sscotti"
+
+    "DicomTlsEnabled" : true,
+    "DicomTlsCertificate" : "/etc/orthanc/tls_dicom/orthanc.crt",
+    "DicomTlsPrivateKey" : "/etc/orthanc/tls_dicom/orthanc.key",
+    "DicomTlsTrustedCertificates" : "/etc/orthanc/tls_dicom/orthanc.crt",
+    "DicomTlsRemoteCertificateRequired" : false,
+    "DicomAlwaysAllowEcho" : true,
+    "DicomAlwaysAllowStore" : true,
+    "DicomAlwaysAllowFind" : true,
+    "DicomAlwaysAllowGet" : true,
+    "DicomAlwaysAllowMove" : true,
+    "DicomCheckModalityHost" : false,
+
+    // Path to the SSL certificate (meaningful only if SSL is enabled)
+    "SslEnabled" : true,
+    "SslCertificate" : "/etc/orthanc/tls_dicom/combined.crt.pem",
+    
+	"ServeFolders" : {
+	
+		"/MyExplorer2": "/development/MyExplorer2",
+		"/MyStone" : "/development/MyStone",
+		"/Sphinx" : "/development/Sphinx",
+		"/Node" : "/development/Node"
+	},
+    "HttpsCACertificates" : "",
+    "HttpsVerifyPeers": false,
+    "SslVerifyPeers" : false,
+    "SslTrustedClientCertificates" : "",
+
+    "StableAge" : 5,
+
+    // Checked in the ReceivedInstanceCallback python script to overwrite tags.
+    "RewriteTagsFromDB": true,
+    "OverwriteInstances" : true,
+
+    "StorageDirectory" : "/var/lib/orthanc/OrthancStorage",
+
+    // Enable the transparent compression of the DICOM instances
+    "StorageCompression" : false,
+
+    // Maximum size of the storage in MB (a value of "0" indicates no
+    // limit on the storage size)
+    "MaximumStorageSize" : 0,
+
+    // Maximum number of patients that can be stored at a given time
+    // in the storage (a value of "0" indicates no limit on the number
+    // of patients)
+    "MaximumPatientCount" : 0,
+
+    // When the following option is "true", if an error is encountered
+    // while calling the REST API, a JSON message describing the error
+    // is put in the HTTP answer. This feature can be disabled if the
+    // HTTP client does not properly handles such answers.
+    "HttpDescribeErrors" : true,
+
+    // Enable HTTP compression to improve network bandwidth utilization,
+    // at the expense of more computations on the server. Orthanc
+    // supports the "gzip" and "deflate" HTTP encodings.
+    "HttpCompressionEnabled" : false,
+
+
+    // The default encoding that is assumed for DICOM files without
+    // "SpecificCharacterSet" DICOM tag. The allowed values are "Ascii",
+    // "Utf8", "Latin1", "Latin2", "Latin3", "Latin4", "Latin5",
+    // "Cyrillic", "Windows1251", "Arabic", "Greek", "Hebrew", "Thai",
+    // "Japanese", and "Chinese".
+
+    "DefaultEncoding" : "Utf8",
+
+    // Whether Orthanc accepts to act as C-Store SCP for unknown storage
+    // SOP classes (aka. "promiscuous mode")
+    "UnknownSopClassAccepted" : true,
+    // if ('Worklists' in ORTHANC_CONFIG and 'Enable' in ORTHANC_CONFIG['Worklists'] and ORTHANC_CONFIG ['Worklists']['Enable'] == False):
+
+    "Worklists" : {
+
+        "Enable": false,
+        "Database": "/var/lib/orthanc/worklists",
+        "FilterIssuerAet": false, // Some modalities do not specify 'ScheduledStationAETitle (0040,0001)'
+        // in the C-Find and may receive worklists not related to them.  This option
+        // adds an extra filtering based on the AET of the modality issuing the C-Find.
+        "LimitAnswers": 0,  // Maximum number of answers to be returned (new in release 1.7.3)
+        "MWL_DB": "orthanc_ris"
+        // If MWL_DB is set and not empty, then this overrides the built-in storage and finds.
+    },
+    
+	"OrthancPeersInDatabase" : true,
+	"DicomModalitiesInDatabase" : false,
+	
+    // The list of the known DICOM modalities
+    
+    "DicomModalities" : {
+
+        "SELF" : {
+
+        "AET" : "PACS",
+        "Port" : 4242,
+        "Host" : "localhost",
+        "Manufacturer" : "Generic",
+        "AllowEcho" : true,
+        "AllowFind" : true,
+        "AllowMove" : true,
+        "AllowStore" : true,
+        "UseDicomTls" : true
+        }
+    },
+
+    // Mostly for Use at the Study Level for search purposes
+    "UserMetadata" : {
+        "ReportStatusJSON" : 1024,
+        "OutsideStudyFlag" : 1025
+    },
+    
+	"StoneWebViewer" :{
+		"SkipSeriesFromModalities": ["SEG", "PR"]
+	},
+    
+	"OrthancExplorer2" : {
+	
+        // enables or disables the plugin completely
+        "Enable": true,
+
+         // Whether OE2 shall replace the default Orthanc Explorer interface ('/' URL will redirect to OE2)
+        "IsDefaultOrthancUI": true,
+
+        // This block of configuration is transmitted as is to the frontend application.
+        // Make sure not to store any secret here
+        
+        "UiOptions" : {
+        
+            "EnableUpload": true,                       // Enables the upload menu/interface
+            "EnableDicomModalities": true,              // Enables the 'DICOM Modalities' interface in the side menu
+            "EnableDeleteResources": true,              // Enables the delete button for Studies/Series/Instances
+            "EnableDownloadZip": true,                  // Enables the download zip button for Studies/Series
+            "EnableDownloadDicomDir": true,            // Enables the download DICOM DIR button for Studies/Series
+            "EnableDownloadDicomFile": true,            // Enables the download DICOM file button for Instances
+            "EnableSendTo": true,                       // Enables the 'SendTo' button for Studies/Series/Instances
+            "EnableApiViewMenu": true,                 // Enables the API button to open API routes for Studies/Series/Instances (developer mode) 
+            "EnableSettings": true,                     // Enables the settings menu/interface
+            "EnableLinkToLegacyUi": true,               // Enables a link to the legacy Orthanc UI
+            
+            "EnableOpenInOhifViewer": true,            // Enables a "open in OHIF viewer" button
+            "OhifViewerPublicRoot" : "http://to-be-defined/",  // must end with a '/'.  e.g: "http://ohif.my.site/Viewer/" means that link to OHIF will look like http://ohif.my.site/Viewer/1.2.3.444.5555....
+
+            "EnableOpenInMedDreamViewer": true,        // Enables a "open in MedDream viewer" button
+            "MedDreamViewerPublicRoot" : "http://to-be-defined/",  // must end with a '/'.  e.g: "http://meddream.my.site/Viewer/" means that link to MedDream will look like http://meddream.my.site/?study=1.2.3.444.5555....
+
+            "MaxStudiesDisplayed": 20,                 // The maximum number of studies displayed in the study list
+            "MaxMyJobsHistorySize": 5,                  // The maximum number of jobs appearing under 'my jobs' in side bar (0 = unlimited)
+
+            "StudyListSearchMode": "search-as-you-type",// mode to trigger a search in the StudyList.  Accepted values: 'search-as-you-type' or 'search-button'
+            "StudyListSearchAsYouTypeMinChars": 3,      // minimum number of characters to enter in a text search field before it starts searching the DB
+            "StudyListSearchAsYouTypeDelay": 400,       // Delay [ms] between the last key stroke and the trigger of the search
+            "StudyListEmptyIfNoSearch": false,          // Show an empty study list if no search criteria has been entered (to use together with StudyListSearchMode="search-button")
+
+            // Default settings are ok for "small" Orthanc Databases.  For large databases, it is recommended to use these settings:
+            // "StudyListSearchMode": "search-button"
+            // "StudyListEmptyIfNoSearch": true
+
+            "ShowOrthancName": true,                    // display the Orthanc Name in the side menu
+            
+            // The list of tags to be displayed in the upload dialog result list
+            // (the first N defined tags in the list are displayed on the UI)
+            // Allowed values are: "StudyDate", "AccessionNumber", "PatientID",
+            // "PatientName", "PatientBirthDate", "StudyDescription"
+            "UploadReportTags" : [                      
+                "PatientName", 
+                "StudyDescription",
+                "PatientID",
+                "AccessionNumber", 
+                "StudyDate" 
+            ],
+            "UploadReportMaxTags" : 2,                  // See above, the max number of tags displayed in the upload report
+
+            // The ordered list of columns to display in the study list.
+            // Allowed values are:
+            //  - Dicom Tags: "StudyDate", "AccessionNumber", "PatientID"
+            //                "PatientName", "PatientBirthDate", "StudyDescription"
+            //  - special columns:
+            //    - "modalities": the list of modalities in the study
+            //    - "seriesCount": the number of series in the study
+            "StudyListColumns" : [
+                "PatientBirthDate",
+                "PatientName",
+                "PatientID",
+                "StudyDescription",
+                "StudyDate",
+                "modalities",
+                "AccessionNumber",
+                "seriesCount"
+            ],
+
+            // The modalities to display in the Modalities filter dropdown in the Study List
+            "ModalitiesFilter": [
+                "CR", "CT", "DR", "DX", "MG", "MR", "NM", "OT", "PT", "PX", "SEG", "SR", "US", "XA"
+            ]
+        }
+    }
+}

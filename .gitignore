@@ -1,0 +1,16 @@
+/MySQL_DB/**
+/MWL/**
+/MWL_CM/**
+/OrthancIndex/**
+/OrthancStorage/**
+orthanc-logs*
+
+/ServeFolders/Sphinx/**
+
+.DS_Store
+python_mpps/scripts_log/mpps.log
+python_mwl_api/scripts_log/api.log
+
+/config/.secrets
+/config/.env
+/config/.env_pacs

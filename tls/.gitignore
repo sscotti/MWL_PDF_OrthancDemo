@@ -1,0 +1,6 @@
+ca-crt.pem
+ca-key.pem
+ca-crt.srl
+server-key.pem
+server-csr.pem
+server-crt.pem
