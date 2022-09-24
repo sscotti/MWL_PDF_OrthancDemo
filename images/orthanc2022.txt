@@ -1,0 +1,31 @@
+Title:  Simple Python Plug-in Scripts to extend Orthanc.  Modality Worklist Creation and Management, and PDF creation from HTML or Base64
+
+Author:  Stephen D. Scotti, M.D., sscotti@sias.dev, self-employed / retired
+
+Abstract:
+
+Orthanc has a Modality Worklist (MWL) server that is part of the core of Orthanc.  The server component of this works quite well, but it does not have built-in support for the creation and management of MWL files themselves.
+
+A method that allows one to convert a JSON description of a MWL file into a MWL file in Dicom format was developed using mostly tools from the "pydicom" package for Python.  In addition, the JSON, the Dicom format and other desired attributes can then be stored in a database (MySQL or Postgres).
+
+Thanks to the Python Plug-in that is part of Orthanc, this can all be done using Python Plug-in scripts without having to resort initially to the development of a C++ plug-in.
+
+Having the ability to create encapsulated PDF documents as instances or series that are attached to a study is also useful.  This is accomplished by adding the "wkhtmltopdf" package to an Orthanc Docker container.
+
+A small GitHub repository is maintained at:  https://github.com/sscotti/MWL_PDF_OrthancDemo 
+
+Bibliography (all internet links)
+
+1.  Dicom VR Reference:  https://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.2.html
+2.  Dicom Data Dictionary Reference with Short Names:  https://dicom.nema.org/medical/dicom/2017e/output/chtml/part06/chapter_6.html
+3.  Pydicom PIP module:  https://pypi.org/project/pydicom/
+4.  Sample Modality Worklists plugin, Orthanc Book:  https://book.orthanc-server.com/plugins/worklists-plugin.html
+
+Biography:
+
+https://www.linkedin.com/in/stephen-d-scotti/
+
+
+Poster / Talk:
+
+Planning to attend, but no finalized plans yet.  It would be quite simple to just give a little demo on my laptop, or just network with people who read the abstract, look at the Github repo and have questions.
