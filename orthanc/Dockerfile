@@ -1,4 +1,4 @@
-FROM osimis/orthanc:22.9.1
+FROM osimis/orthanc:22.9.2
 ENV DEBIAN_FRONTEND=noninteractive
 # disable http bundle since we're specifying http parameters in the orthanc.json configuration file
 ENV HTTP_BUNDLE_DEFAULTS=false

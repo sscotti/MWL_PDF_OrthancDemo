@@ -104,6 +104,74 @@ def get_DB():
         print("Message", err.msg)
         return False
         
+def ReceivedInstanceCallback(receivedDicom, origin):
+
+    # Only do the modifications if via DICOM and ideally filter by AET.
+    orthanc.LogWarning('DICOM instance received in ReceivedInstanceCallback from ' + str(origin))
+    dataset = dcmread(BytesIO(receivedDicom))
+    jsonTags = json.loads(orthanc.DicomBufferToJson(receivedDicom, orthanc.DicomToJsonFormat.HUMAN, orthanc.DicomToJsonFlags.NONE, 0))
+    # orthanc.LogWarning(json.dumps(jsonTags, indent = 2, sort_keys = True))
+    
+    if origin == orthanc.InstanceOrigin.DICOM_PROTOCOL:
+
+        # 0008,1010 (StationName): G-scan Brio MRI, 0008,1010, may need to add additional conditions to filter on device.
+        return orthanc.ReceivedInstanceAction.MODIFY, dataset_to_bytes(dataset)
+        
+    elif origin == orthanc.InstanceOrigin.REST_API:
+    
+        if "Modality" in jsonTags and jsonTags['Modality'] == "SR":
+            logging.info("NEW_INSTANCE|EDIT_TAGS|SR MODALITY|"+json.dumps(jsonTags, indent = 2, sort_keys = True))
+            # If it an SR Modality type, use dcmtk dsr2html to convert to HTML, then
+            # use wkhtmltopdf to convert to an encapsulated PDF for easier diaplay.
+            # see https://support.dcmtk.org/docs/dsr2html.html
+            pathtobinary = shutil.which("dsr2html")
+            dataset.save_as("/development/temp.dcm" ,write_like_original=True) 
+            cmd =  pathtobinary + " -Ei /development/temp.dcm /development/temp.html"
+            os.system(cmd) # returns the exit status
+            pathtobinary = shutil.which("wkhtmltopdf")
+            config = pdfkit.configuration(wkhtmltopdf=pathtobinary)
+            options = {
+                'page-size': 'Letter',
+                'margin-top': '0.75in',
+                'margin-right': '0.75in',
+                'margin-bottom': '0.75in',
+                'margin-left': '0.75in',
+                'footer-line':'',
+                'footer-font-size':'12',
+                'footer-center': 'Page [page] of [toPage], [date]',
+                'encoding': 'utf-8'
+            }
+            pdf = pdfkit.from_file("/development/temp.html", False,options=options)
+            encoded = base64.b64encode(pdf).decode()
+            dicomdata = dict()
+            dicomdata['Force'] = True
+            dicomdata['Tags'] = {
+            "PatientID":jsonTags['PatientID'],
+            "PatientName":jsonTags['PatientName'],
+            "PatientBirthDate":jsonTags['PatientBirthDate'],
+            "PatientSex":jsonTags['PatientSex'],
+            "Modality":"OT",
+            "SeriesDescription": jsonTags['SeriesDescription']+", SR Converted to PDF",
+            "SequenceName" : "NA",
+            "ImageComments":"SR Converted using dsr2html & wkhtmltopdf",
+            "SOPClassUID":"1.2.840.10008.5.1.4.1.1.7.4",
+            "StudyInstanceUID":jsonTags['StudyInstanceUID']
+            }
+            dicomdata['Content'] = "data:application/pdf;base64,"+encoded;
+            convertedSR = json.loads(orthanc.RestApiPost('/tools/create-dicom', json.dumps(dicomdata)))
+            return orthanc.ReceivedInstanceAction.MODIFY, dataset_to_bytes(dataset)
+        
+#   PyDict_SetItemString(sdk_OrthancPluginInstanceOrigin_Type.tp_dict, "UNKNOWN", PyLong_FromLong(1));
+#   PyDict_SetItemString(sdk_OrthancPluginInstanceOrigin_Type.tp_dict, "DICOM_PROTOCOL", PyLong_FromLong(2));
+#   PyDict_SetItemString(sdk_OrthancPluginInstanceOrigin_Type.tp_dict, "REST_API", PyLong_FromLong(3));
+#   PyDict_SetItemString(sdk_OrthancPluginInstanceOrigin_Type.tp_dict, "PLUGIN", PyLong_FromLong(4));
+#   PyDict_SetItemString(sdk_OrthancPluginInstanceOrigin_Type.tp_dict, "LUA", PyLong_FromLong(5));
+#   PyDict_SetItemString(sdk_OrthancPluginInstanceOrigin_Type.tp_dict, "WEB_DAV", PyLong_FromLong(6));
+    else:
+        return orthanc.ReceivedInstanceAction.KEEP_AS_IS, None
+        
+orthanc.RegisterReceivedInstanceCallback(ReceivedInstanceCallback)
+        
 # Method to open a postgres connection to the DB.
 
 # def get_PostGres_DB():
@@ -441,11 +509,11 @@ def OnChange(changeType, level, resource):
 
         orthanc.LogWarning('A new instance was uploaded: %s' % resource)
 
-    elif changeType == orthanc.ChangeType.STABLE_STUDY:
+    elif changeType == orthanc.ChangeType.NEW_STUDY:
 
         study = json.loads(orthanc.RestApiGet('/studies/%s' % resource))
-        orthanc.LogWarning('A Study is Stable, ID: %s' % resource)
-        SendNotification("STUDY UPLOADED/UPDATED from Modality, Accession:  " + accession, json.dumps(study, indent = 3))
+        orthanc.LogWarning('NEW_STUDY from Modality, ID: %s' % resource)
+        SendNotification("NEW_STUDY from Modality:", json.dumps(study, indent = 3))
 
     elif changeType == orthanc.ChangeType.ORTHANC_STARTED:
 
@@ -1058,6 +1126,19 @@ def HTMLTOPDF(output, uri, **request):
         pdf = getpdf(query, output)
 
 orthanc.RegisterRestCallback('/pdfkit/htmltopdf', HTMLTOPDF)
+
+# https://localhost:8042/dicom-web/studies/1.2.840.113619.2.415.3.2831206744.64.1664353911.310/series/1.2.840.113619.2.415.3.2831206744.64.1664353911.487/rendered?viewport=128,128
+# This series query for an SR image does not work currently.
+
+def DicomWebSeriesRender(output, uri, **request):
+
+    logging.info("TEST")
+    SOPInstanceUID = request['groups'][2]
+    query = '{"Level" : "Instance","Query":{"SOPInstanceUID":"'+str(SOPInstanceUID)+'"}}'
+    data = orthanc.RestApiPost('/tools/find', query)
+    output.AnswerBuffer(data, 'application/dcm')
+
+orthanc.RegisterRestCallback('/dicom-web/studies/(.*)/series/(.*)/rendered', DicomWebSeriesRender)
 
 
 

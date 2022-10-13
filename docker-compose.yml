@@ -33,7 +33,7 @@ services:
       ORTHANC__DATABASE_SERVER_IDENTIFIER: "PACS"
       # POSTGRES & MYSQL
       ORTHANC__POSTGRESQL__HOST: "postgres_index-db"
-      ORTHANC__LUA_SCRIPTS: '["/lua-scripts/PACS_OnStoredInstance.lua"]'
+#       ORTHANC__LUA_SCRIPTS: '["/lua-scripts/PACS_OnStoredInstance.lua"]'
       ORTHANC__EXPLORER_2__ROOT: "/pacs/"
       
     env_file:
