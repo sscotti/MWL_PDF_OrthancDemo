@@ -29,7 +29,7 @@
     // known transfer syntaxes are accepted. (new in Orthanc 1.9.0)
     "AcceptedTransferSyntaxes" : [ "1.2.840.10008.1.*" ],
 
-    "DicomTlsEnabled" : true,
+    "DicomTlsEnabled" : false,
     "DicomTlsCertificate" : "/etc/orthanc/tls_dicom/orthanc.crt",
     "DicomTlsPrivateKey" : "/etc/orthanc/tls_dicom/orthanc.key",
     "DicomTlsTrustedCertificates" : "/etc/orthanc/tls_dicom/orthanc.crt",
@@ -132,6 +132,19 @@
         "AllowMove" : true,
         "AllowStore" : true,
         "UseDicomTls" : true
+        },
+        
+        "IMAC" : {
+
+        "AET" : "Stephens-iMac",
+        "Port" : 11112,
+        "Host" : "192.168.0.208",
+        "Manufacturer" : "Generic",
+        "AllowEcho" : true,
+        "AllowFind" : true,
+        "AllowMove" : true,
+        "AllowStore" : true,
+        "UseDicomTls" : false
         }
     },
     
