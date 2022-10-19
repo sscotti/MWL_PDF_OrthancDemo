@@ -42,7 +42,7 @@
     "DicomCheckModalityHost" : false,
 
     // Path to the SSL certificate (meaningful only if SSL is enabled)
-    "SslEnabled" : true,
+    "SslEnabled" : false,
     "SslCertificate" : "/etc/orthanc/tls_dicom/combined.crt.pem",
     
 	"ServeFolders" : {
@@ -100,7 +100,8 @@
     // Whether Orthanc accepts to act as C-Store SCP for unknown storage
     // SOP classes (aka. "promiscuous mode")
     "UnknownSopClassAccepted" : true,
-    // if ('Worklists' in ORTHANC_CONFIG and 'Enable' in ORTHANC_CONFIG['Worklists'] and ORTHANC_CONFIG ['Worklists']['Enable'] == False):
+    // If Enable is set to true, then Orthanc will use the native MWL server.
+    // If Enable is set to false, then Orthanc will use the custom response generated from the Python Plug-in script, see DROP IN REPLACEMENT FOR THE NATIVE ORTHANC MWL PLUG-IN.
 
     "Worklists" : {
 
@@ -111,7 +112,9 @@
         // adds an extra filtering based on the AET of the modality issuing the C-Find.
         "LimitAnswers": 0,  // Maximum number of answers to be returned (new in release 1.7.3)
         "MWL_DB": "orthanc_ris"
-        // If MWL_DB is set and not empty, then this overrides the built-in storage and finds.
+        // If MWL_DB is set and not empty, then this overrides the default, which is orthanc_ris
+        // This is a custom DB to store MWL files created from JSON requests via an API
+        // and it is also then used to generate responses to C-FIND MWL's using the DB, rather than the file system.
     },
     
 	"OrthancPeersInDatabase" : false,

@@ -43,6 +43,8 @@ import datetime
 from datetime import datetime
 import requests # for sending CURL to Orthanc endpoint, https://www.w3schools.com/python/module_requests.asp, https://www.w3schools.com/python/ref_requests_post.asp, sudo python3 -m pip install requests
 import pprint # pretty printer
+import zipfile
+from zipfile import ZipFile, ZipInfo
 
 
 def get_current_datetimestring():
@@ -73,24 +75,27 @@ ORTHANC_CONFIG = json.loads(orthanc.GetConfiguration())
 
 if ('Worklists' in ORTHANC_CONFIG and 'MWL_DB' in ORTHANC_CONFIG['Worklists'] and ORTHANC_CONFIG ['Worklists']['MWL_DB'] != ""):
     RISDB = ORTHANC_CONFIG ['Worklists']['MWL_DB']
-    orthanc.LogWarning('Using DB ' + RISDB + ' for MWL Storage.')
 else:
-    RISDB = False
-    orthanc.LogWarning('No DB configured for MWL Storage.')
+    RISDB = 'orthanc_ris'
+logging.info('Using DB ' + RISDB + ' for MWL DB Storage.')
 
 if ('Worklists' in ORTHANC_CONFIG and 'Database' in ORTHANC_CONFIG['Worklists'] and ORTHANC_CONFIG ['Worklists']['Database'] != ""):
-    WORKLIST_DIR = str(json.loads(orthanc.GetConfiguration())['Worklists']['Database']) + '/'
+    WORKLIST_DIR = str(ORTHANC_CONFIG['Worklists']['Database']) + '/'
 else:
-    WORKLIST_DIR = False
-    
-# General Method for logging to custom log.  CATEGORY | MESSAGE
-logging.info("WORKLIST|DIRECTORY|" + WORKLIST_DIR)
+    WORKLIST_DIR = "/var/lib/orthanc/worklists/"
+logging.info('Using ' + WORKLIST_DIR + ' for MWL File System Storage.')
 
-# print( WORKLIST_DIR if  WORKLIST_DIR else "No Worklist Folder Defined")
+if ('Worklists' in ORTHANC_CONFIG and 'Enable' in ORTHANC_CONFIG['Worklists'] and ORTHANC_CONFIG ['Worklists']['Enable'] == False):
+    USE_DB_MWL_SERVER = True
+else:
+    USE_DB_MWL_SERVER = False
+    
+logging.info('Using DB for MWL responses is:  ' +  ("True" if  USE_DB_MWL_SERVER else  "False"))
 
 pp = pprint.PrettyPrinter(indent=4)
 
 # Method to open a mysql connection to the DB.
+
 def get_DB():
     password = os.getenv('MYSQL_ROOT_PASSWORD','')
     try:
@@ -104,6 +109,9 @@ def get_DB():
         print("Message", err.msg)
         return False
         
+        
+# demo on how to convert SR to PDF on receiving an SR instance through the RestApiGet using dsr2html and wkhtmltopdf
+
 def ReceivedInstanceCallback(receivedDicom, origin):
 
     # Only do the modifications if via DICOM and ideally filter by AET.
@@ -114,13 +122,14 @@ def ReceivedInstanceCallback(receivedDicom, origin):
     
     if origin == orthanc.InstanceOrigin.DICOM_PROTOCOL:
 
-        # 0008,1010 (StationName): G-scan Brio MRI, 0008,1010, may need to add additional conditions to filter on device.
-        return orthanc.ReceivedInstanceAction.MODIFY, dataset_to_bytes(dataset)
+        # Do Nothing for now
+        return orthanc.ReceivedInstanceAction.KEEP_AS_IS, None
         
     elif origin == orthanc.InstanceOrigin.REST_API:
     
         if "Modality" in jsonTags and jsonTags['Modality'] == "SR":
-            logging.info("NEW_INSTANCE|EDIT_TAGS|SR MODALITY|"+json.dumps(jsonTags, indent = 2, sort_keys = True))
+        
+            logging.info("NEW SR INSTANCE VIA RESTAPI"+json.dumps(jsonTags, indent = 2, sort_keys = True))
             # If it an SR Modality type, use dcmtk dsr2html to convert to HTML, then
             # use wkhtmltopdf to convert to an encapsulated PDF for easier diaplay.
             # see https://support.dcmtk.org/docs/dsr2html.html
@@ -276,7 +285,6 @@ def getMWLJSONDataset (AccessionNumber, StudyInstanceUID):
         return False;
     
 
-
 # Save Dataset to DB
 
 def SaveDatasetDB(JSON, dataset):
@@ -329,15 +337,17 @@ def MWLFromJSONCreateAndSave(output, uri, **request):
         logging.info("WORKLIST|MWLFromJSONCreateAndSave|" + json.dumps(query))
         dataset = Dataset()
         dataset = getMWLFromJSON(query, dataset)
-        dataset.is_little_endian = True # 'Dataset.is_little_endian' and 'Dataset.is_implicit_VR' must be set appropriately before saving
-        dataset.is_implicit_VR = True
+        dataset.file_meta = FileMetaDataset()
+        dataset.file_meta.ImplementationClassUID = pydicom.uid.PYDICOM_IMPLEMENTATION_UID
+        dataset.file_meta.ImplementationVersionName = "ORTHANC_PY_MWL"
+        dataset.file_meta.MediaStorageSOPClassUID = "0"
+        dataset.file_meta.MediaStorageSOPInstanceUID = "0"
+        dataset.file_meta.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
+        dataset.is_little_endian = dataset.file_meta.TransferSyntaxUID.is_little_endian
+        dataset.is_implicit_VR = dataset.file_meta.TransferSyntaxUID.is_implicit_VR
         # Set creation date/time
         dt = datetime.now()
         dataset.ContentDate = dt.strftime('%Y%m%d')
-        
-#         if dataset.ScheduledProcedureStepSequence[0]['ScheduledStationAETitle'].value == "NmrEsaote":
-#             dataset.SpecificCharacterSet = "ISO_IR 100"
-
         timeStr = dt.strftime('%H%M%S.%f')  # long format with micro seconds
         dataset.ContentTime = timeStr
         response = SaveDatasetDB(query, dataset)
@@ -352,6 +362,7 @@ def getActiveMWLs ():
     if (conn):
         mycursor = conn.cursor(dictionary=True)
         try:
+            # For now, gets only the most recent one for a given AccessionNumber and also where completed is 0.
             mycursor.execute("SELECT * from mwl m1 WHERE created_at = (SELECT MAX(created_at) from mwl m2 WHERE m1.AccessionNumber = m2.AccessionNumber ) AND Completed = 0 ORDER BY AccessionNumber ASC")
             myresult = mycursor.fetchall()
             mycursor.close()
@@ -373,24 +384,26 @@ def getActiveMWLs ():
 
 # findscu 127.0.0.1 4242  -W -d --anonymous-tls --ignore-peer-cert -k "ScheduledProcedureStepSequence[0].Modality=MR"
 
-def OnWorklist(answers, query, issuerAet, calledAet):
+if (USE_DB_MWL_SERVER == True):
 
-    orthanc.LogWarning('Received incoming C-FIND worklist request from %s:' % issuerAet)
-    # Get a memory buffer containing the DICOM instance
-    dicom = query.WorklistGetDicomQuery()
-    # Get the DICOM tags in the JSON format from the binary buffer
-    jsonTags = json.loads(orthanc.DicomBufferToJson(dicom, orthanc.DicomToJsonFormat.HUMAN, orthanc.DicomToJsonFlags.NONE, 0))
-    orthanc.LogWarning('C-FIND worklist request to be handled in Python: %s' % json.dumps(jsonTags, indent = 4, sort_keys = True))
-    MWLfromDB = getActiveMWLs ()
-    # Loop over the available DICOM worklists
-    for order in MWLfromDB:
-        content = order['Dataset']
-        # Test whether the query matches the current worklist
-        if query.WorklistIsMatch(content):
-            orthanc.LogWarning('Matching worklist: %s' % order['AccessionNumber'])
-            answers.WorklistAddAnswer(query, content)
+    def OnWorklist(answers, query, issuerAet, calledAet):
 
-orthanc.RegisterWorklistCallback(OnWorklist)
+        orthanc.LogWarning('Received incoming C-FIND worklist request from %s:' % issuerAet)
+        # Get a memory buffer containing the DICOM instance
+        dicom = query.WorklistGetDicomQuery()
+        # Get the DICOM tags in the JSON format from the binary buffer
+        jsonTags = json.loads(orthanc.DicomBufferToJson(dicom, orthanc.DicomToJsonFormat.HUMAN, orthanc.DicomToJsonFlags.NONE, 0))
+        orthanc.LogWarning('C-FIND worklist request to be handled in Python: %s' % json.dumps(jsonTags, indent = 4, sort_keys = True))
+        MWLfromDB = getActiveMWLs ()
+        # Loop over the available DICOM worklists
+        for order in MWLfromDB:
+            content = order['Dataset']
+            # Test whether the query matches the current worklist
+            if query.WorklistIsMatch(content):
+                orthanc.LogWarning('Matching worklist: %s' % order['AccessionNumber'])
+                answers.WorklistAddAnswer(query, content)
+
+    orthanc.RegisterWorklistCallback(OnWorklist)
 
 
 
@@ -995,6 +1008,7 @@ def ceildiv(a, b):
     return -(-a // b)
     
 # Could extend this such that the passed in widget id/number is a selection of preconfigured widgets for pagination, since it include HTML markup.
+
 def CreateWidget(limit, pagenumber, url, count):
 
     total_pages = ceildiv(count, limit);
@@ -1032,32 +1046,6 @@ def GetSortParam(study):
         return ''
 
 
-# Format for Server Error in response
-# HttpError    "Internal Server Error"
-# HttpStatus    500
-# Message    "Error encountered within the plugin engine"
-# Method    "POST"
-# OrthancError    "Error encountered within the plugin engine"
-# OrthancStatus    1
-# Uri    "/pdfkit/htmltopdf"
-
-# BEGINNING OF PDF FROM HTML
-
-# curl -k http://localhost:8042/pdfkit/htmltopdf -d '{
-# "method": "html",
-# "html": "ReportHTML",
-# "base64": "GenratedFromHTML",
-# "title": "PRELIM",
-# "studyuuid": "d467a091-3d8dcf04-b8f466da-c60261b2-e2afe5c8",
-# "return": 0,
-# "attach": 1,
-# "author": "1:Stephen Douglas Scotti "
-# }'
-
-# curl -k http://localhost:8042/pdfkit/htmltopdf -d '{"method":"base64","title":"BASE64 TO PDF","studyuuid":"e6596260-fdf91aa9-0257a3c2-4778ebda-f2d56d1b","base64":"JVBER . . .","return":1,"attach":1}'
-# Modality is non-standard for REPORT, with the status PRELIM, FINAL, ADDENDUM, OperatorsName is "ID"
-# 1.2.840.10008.5.1.4.1.1.104.1 is SOP CLASS for Encapsulated PDF IOD /  "SOPClassUID":"1.2.840.10008.5.1.4.1.1.104.1"
-# https://www.dicomlibrary.com/dicom/sop/
 def attachbase64pdftostudy(query):
 
     attachresponse = dict()
@@ -1127,19 +1115,31 @@ def HTMLTOPDF(output, uri, **request):
 
 orthanc.RegisterRestCallback('/pdfkit/htmltopdf', HTMLTOPDF)
 
-# https://localhost:8042/dicom-web/studies/1.2.840.113619.2.415.3.2831206744.64.1664353911.310/series/1.2.840.113619.2.415.3.2831206744.64.1664353911.487/rendered?viewport=128,128
-# This series query for an SR image does not work currently.
 
-def DicomWebSeriesRender(output, uri, **request):
+# Intercept native method to enable logging, custom .zip archive creation, e.g. with Radiant Viewer
 
-    logging.info("TEST")
-    SOPInstanceUID = request['groups'][2]
-    query = '{"Level" : "Instance","Query":{"SOPInstanceUID":"'+str(SOPInstanceUID)+'"}}'
-    data = orthanc.RestApiPost('/tools/find', query)
-    output.AnswerBuffer(data, 'application/dcm')
+# curl -k -v https://localhost:8042/studies/8a8cf898-ca27c490-d0c7058c-929d0581-2bbf104d/archive > Study.zip
 
-orthanc.RegisterRestCallback('/dicom-web/studies/(.*)/series/(.*)/rendered', DicomWebSeriesRender)
+def OnDownloadStudyArchive(output, uri, **request):
 
+    host = "Not Defined"
+    userprofilejwt = "Not Defined"
+    if "headers" in request and "host" in request['headers']:
+        host = request['headers']['host']
+    if "headers" in request and "userprofilejwt" in request['headers']:
+        userprofilejwt = request['headers']['userprofilejwt']
+    logging.info("STUDY|DOWNLOAD_ARCHIVE|ID=" + request['groups'][0] + "  HOST=" + host + "  PROFILE=  " + userprofilejwt)
+    new_zip = BytesIO()
+    archive = orthanc.RestApiGet(uri)
+    with ZipFile('/python/radiant_cd.zip', 'r') as radiant_zip:
+        with ZipFile(new_zip, 'w') as new_archive:
+            for item in radiant_zip.filelist:
+                print(item.filename)
+                new_archive.writestr(item, radiant_zip.read(item.filename))
+            new_archive.writestr('archive.zip', archive)
+    output.AnswerBuffer(new_zip.getvalue(), 'application/zip')
+
+orthanc.RegisterRestCallback('/studies/(.*)/archive', OnDownloadStudyArchive)
 
 
 # DISABLE FOR Now, Generates Documentation on Startup
