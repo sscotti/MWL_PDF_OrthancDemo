@@ -149,6 +149,8 @@ curl -k http://localhost:8042/pdfkit/htmltopdf -d '{
 To test Key Image, replace the StudyInstanceUID with one on your server.  If there is no KEY_IMAGE series it will create one.  If there already is one it will add an instance to the series.
 
 There does seem to be an issue with running this in the Python Plug-in.  I've implemented the same from PHP via an API and that works better as there are no 'hangs'.
+I've experienced Orthanc hanging sometimes in some of my setups when the study for which a key image is being made is concurrently being modified by Orthanc, or when Orthanc is conccurrently
+receiving studies from a modality via the DICOM protocol.
 
 curl -k http://localhost:8042/make_key_image -d '{
 "StudyInstanceUID": "1.3.6.1.4.1.5962.1.2.1.20040119072730.12322",

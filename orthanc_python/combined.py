@@ -1136,7 +1136,9 @@ def OnDownloadStudyArchive(output, uri, **request):
             for item in radiant_zip.filelist:
                 print(item.filename)
                 new_archive.writestr(item, radiant_zip.read(item.filename))
-            new_archive.writestr('archive.zip', archive)
+            #  Important to name it 'dcmdata.zip' since Radiant will auto-read that
+            #  Without having to extract it.
+            new_archive.writestr('dcmdata.zip', archive)
     output.AnswerBuffer(new_zip.getvalue(), 'application/zip')
 
 orthanc.RegisterRestCallback('/studies/(.*)/archive', OnDownloadStudyArchive)
