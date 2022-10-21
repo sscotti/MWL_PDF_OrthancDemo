@@ -128,13 +128,13 @@ services:
       
 #  Add container for MedDream Viewer
 
-#   meddream:
-# 
-#     image: meddream/dicom-viewer:8.0.0
-#     restart: always
-#     ports:
-#       - "80:8080"
-#     volumes:
-#       - ./meddream/application.properties:/opt/meddream/application.properties
-# #       - ./meddream/license.txt:/opt/meddream/
+  meddream:
+
+    image: meddream/dicom-viewer:8.0.0
+    restart: always
+    ports:
+      - "80:8080"
+    volumes:
+      - ./meddream/application.properties:/opt/meddream/application.properties
+      - ./meddream/license:/opt/meddream/license
 

@@ -14,3 +14,5 @@ python_mwl_api/scripts_log/api.log
 /config/.secrets
 /config/.env
 /config/.env_pacs
+
+/meddream/license/**
