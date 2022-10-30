@@ -39,7 +39,11 @@ https://localhost:8042/ui/app/#/ or http://localhost:8042/ui/app/#/
 
 https://localhost:8042/app/explorer.html or http://localhost:8042/app/explorer.html
 
-## Notes about the orthanc_ris DB for MySQL and Postgres:
+## Note about MedDream and OHIF viewers:
+
+There are docker builds for both MedDream and OHIF included with the package, and they are for the most part integrated into the Explorer2 interface, although you made need to tweak the configuration a little, particularly for MedDream.  I would recommend getting a trial license if you really want to play around with that.  You might to play around with the certificates in the tls folder and in the nginx.conf files to get that all setup the way you want.
+
+## Note about the orthanc_ris DB for MySQL and Postgres:
 
 1.  This is still a work in progress, but note the following.
 2.  The **mml** table stores data concerning MWL files that are created via the API, including the JSON and Binary DICOM format.  Responses can be generated from the DB vs. the native file system method as part of the core of Orthanc.
