@@ -85,7 +85,7 @@ curl -k -X POST  http://localhost:8042/mwl/create_from_json -d '
 "ScheduledStationAETitle": "NmrEsaote"
 }],
 "SpecificCharacterSet": "ISO_IR 192",
-"StudyInstanceUID": ""
+"StudyInstanceUID": "StudyInstanceUID"
 }
 '
 
@@ -133,14 +133,14 @@ curl -k http://localhost:8042/pdfkit/htmltopdf -d  '{
 "method":"base64",
 "title":"BASE64 TO PDF",
 "author": "Stephen D. Scotti",
-"studyuuid":"8a8cf898-ca27c490-d0c7058c-929d0581-2bbf104d",
+"studyuuid":"d8cadbbc-ad5e1f78-d6361373-86f22b9f-8c0100e2",
 "base64":"JVBERi0xLjcKCjEgMCBvYmogICUgZW50cnkgcG9pbnQKPDwKICAvVHlwZSAvQ2F0YWxvZwogIC9QYWdlcyAyIDAgUgo+PgplbmRvYmoKCjIgMCBvYmoKPDwKICAvVHlwZSAvUGFnZXMKICAvTWVkaWFCb3ggWyAwIDAgMjAwIDIwMCBdCiAgL0NvdW50IDEKICAvS2lkcyBbIDMgMCBSIF0KPj4KZW5kb2JqCgozIDAgb2JqCjw8CiAgL1R5cGUgL1BhZ2UKICAvUGFyZW50IDIgMCBSCiAgL1Jlc291cmNlcyA8PAogICAgL0ZvbnQgPDwKICAgICAgL0YxIDQgMCBSIAogICAgPj4KICA+PgogIC9Db250ZW50cyA1IDAgUgo+PgplbmRvYmoKCjQgMCBvYmoKPDwKICAvVHlwZSAvRm9udAogIC9TdWJ0eXBlIC9UeXBlMQogIC9CYXNlRm9udCAvVGltZXMtUm9tYW4KPj4KZW5kb2JqCgo1IDAgb2JqICAlIHBhZ2UgY29udGVudAo8PAogIC9MZW5ndGggNDQKPj4Kc3RyZWFtCkJUCjcwIDUwIFRECi9GMSAxMiBUZgooSGVsbG8sIHdvcmxkISkgVGoKRVQKZW5kc3RyZWFtCmVuZG9iagoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDEwIDAwMDAwIG4gCjAwMDAwMDAwNzkgMDAwMDAgbiAKMDAwMDAwMDE3MyAwMDAwMCBuIAowMDAwMDAwMzAxIDAwMDAwIG4gCjAwMDAwMDAzODAgMDAwMDAgbiAKdHJhaWxlcgo8PAogIC9TaXplIDYKICAvUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKNDkyCiUlRU9G","return":1,"attach":1
 }'
 
 curl -k http://localhost:8042/pdfkit/htmltopdf -d '{
 "method":"html","title":"HTML To PDF",
 "author": "Stephen D. Scotti",
-"studyuuid":"8a8cf898-ca27c490-d0c7058c-929d0581-2bbf104d",
+"studyuuid":"d8cadbbc-ad5e1f78-d6361373-86f22b9f-8c0100e2",
 "html":"Basically put any valid HTML, including CSS that can be rendered by wkhtmltopdf",
 "return":1,
 "attach":1

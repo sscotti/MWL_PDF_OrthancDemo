@@ -47,12 +47,14 @@ import zipfile
 from zipfile import ZipFile, ZipInfo
 
 
+
+
 def get_current_datetimestring():
     # datetime object containing current date and time
     now = datetime.now()
     dt_string = now.strftime("%Y.%m.%d-%H.%M.%S")
     return dt_string
-
+    
 
 logging.basicConfig(filename='/etc/orthanc/logs/' + get_current_datetimestring() + '_custom.log', level=logging.DEBUG, format ='%(asctime)s | %(name)s | %(levelname)-8s | %(message)s') #  encoding='utf-8' only added in python v 3.9
 logging.info('Date/Time|Name|Level|CATEGORY|SUBCATEGORY|MESSAGE')
@@ -94,7 +96,75 @@ logging.info('Using DB for MWL responses is:  ' +  ("True" if  USE_DB_MWL_SERVER
 
 pp = pprint.PrettyPrinter(indent=4)
 
-# Method to open a mysql connection to the DB.
+# Method to determine return if a Study is Stable, byt the StudyInstanceUID.
+# Note that there may be more than 1, in which case it is ambiguous.
+
+def study_is_stable(StudyInstanceUID):
+
+    study = json.loads(orthanc.RestApiPost('/tools/lookup', StudyInstanceUID))
+    if len(study) != 1:
+        return {"error":"StudyInstanceUID count is not 1, it is" + str(len(study))}
+    else:
+        study = study[0]
+        study = json.loads(orthanc.RestApiGet('/studies/%s' % study['ID']))
+        if study['IsStable'] == True or ORTHANC_CONFIG['IgnoreStable'] == True:
+            return study
+        else:
+            return {"error":"The Study is not yet Stable"}
+            
+# SAVE NOTICE OF STUDY MARKED COMPLETE, FOR ACCOUNTING PURPOSES & MWL purposes
+
+# curl -k -v http://localhost:8042/studies/study_complete_DB -d '{"Tech": "1:SDS", "ID": "d8cadbbc-ad5e1f78-d6361373-86f22b9f-8c0100e2"}'
+
+def study_complete_DB(output, uri, **request):
+
+    if request['method'] != 'POST':
+        output.SendMethodNotAllowed('POST')
+    else:
+        response = dict()
+        query = json.loads(request['body'])
+        ID = query['ID']
+        study = json.loads(orthanc.RestApiGet('/studies/%s' % ID))
+        response["study"] = study
+        conn = get_DB()
+        if (conn):
+            MainDicomTags = study['MainDicomTags']
+            PatientMainDicomTags = study['PatientMainDicomTags']
+            StudyInstanceUID = ""
+            AccessionNumber = ""
+            PatientID = ""
+            Tech = ""
+            if ('StudyInstanceUID' in MainDicomTags): StudyInstanceUID = MainDicomTags['StudyInstanceUID'] # Not sure if this belongs is SPSS
+            if ('AccessionNumber' in MainDicomTags): AccessionNumber = MainDicomTags['AccessionNumber']
+            if ('PatientID' in PatientMainDicomTags): PatientID = PatientMainDicomTags['PatientID']
+            if ('Tech' in query): Tech = query['Tech']
+            JSONinsert = json.dumps(study,sort_keys = True)
+            mycursor = conn.cursor()
+            try:
+                mycursor.execute("INSERT INTO study_complete (JSON, uuid, StudyInstanceUID, AccessionNumber, PatientID, Tech) VALUES (%s, %s, %s, %s, %s, %s)", (JSONinsert, ID, StudyInstanceUID, AccessionNumber, PatientID, Tech))
+                conn.commit()
+                logging.info("Marking Study complete, row count:  " + str(mycursor.rowcount))
+                mycursor.close()
+                conn.close()
+                response["error"] = False
+                response["status"] = "Record Saved in study_complete"
+            except mysql.connector.Error as err:
+                logging.info("DB Error " + str(err))
+                logging.info("DB Error " + err.msg)
+                mycursor.close()
+                conn.close()
+                response["error"] = True
+                response["status"] = str(err)
+        else:
+            logging.info('Failed to Connect to DB when storing completed study.')
+            response["error"] = True
+            response["status"] = "Connect Connect to DB"
+        SendNotification("Study Marked Completed Via API", json.dumps(response, indent = 3))
+        output.AnswerBuffer(json.dumps(response), 'application/json')
+        
+orthanc.RegisterRestCallback('/studies/study_complete_DB', study_complete_DB)
+
+# METHOD TO OPEN A MYSQL CONNECTION TO THE DB.
 
 def get_DB():
     password = os.getenv('MYSQL_ROOT_PASSWORD','')
@@ -109,8 +179,28 @@ def get_DB():
         print("Message", err.msg)
         return False
         
+# METHOD TO CONNECT TO POSTGRES AND RETURN CONN, DON'T FORGET TO CLOSE IN THE CALLING METHOD !
+
+def get_PostGres_DB():
+
+    host = os.getenv('ORTHANC__POSTGRESQL__HOST','')
+    password = os.getenv('ORTHANC__POSTGRESQL__PASSWORD','')
+    try:
+        DB_NAME = "orthanc_ris"
+        conn = psycopg2.connect(host=host, port = 5432, dbname=DB_NAME, user="postgres", password=password)
+        # object type: psycopg2.extensions.connection
+        logging.info("Postgres Connection:  "+str(type(conn)))
+        autocommit = psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
+        logging.info("ISOLATION_LEVEL_AUTOCOMMIT:"+ str(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT))
+        conn.set_isolation_level( autocommit )
+        return conn
+    except psycopg2.Error as err:
+        logging.info("Postgres DB Connect Error: "+str(err))
+        logging.info("Postgres DB Connect Error: "+str(err.pgerror))
+        return False
         
-# demo on how to convert SR to PDF on receiving an SR instance through the RestApiGet using dsr2html and wkhtmltopdf
+                
+# DEMO ON HOW TO CONVERT SR TO PDF ON RECEIVING AN SR INSTANCE THROUGH THE RESTAPIGET USING DSR2HTML AND WKHTMLTOPDF
 
 def ReceivedInstanceCallback(receivedDicom, origin):
 
@@ -181,41 +271,6 @@ def ReceivedInstanceCallback(receivedDicom, origin):
         
 orthanc.RegisterReceivedInstanceCallback(ReceivedInstanceCallback)
         
-# Method to open a postgres connection to the DB.
-
-# def get_PostGres_DB():
-# 
-#     host = os.getenv('ORTHANC__POSTGRESQL__HOST','')
-#     password = os.getenv('ORTHANC__POSTGRESQL__PASSWORD','')
-#     
-#     try:
-#         DB_NAME = "mwl"
-#         conn = psycopg2.connect(host=host, port = 5432, dbname=DB_NAME, user="postgres", password=password)
-#         # object type: psycopg2.extensions.connection
-#         print ("\ntype(conn):", type(conn))
-#         # string for the new database name to be created
-#         # get the isolation leve for autocommit
-#         autocommit = psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
-#         print ("ISOLATION_LEVEL_AUTOCOMMIT:", psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-#         # set the isolation level for the connection's cursors
-#         # will raise ActiveSqlTransaction exception otherwise
-#         conn.set_isolation_level( autocommit )
-#         # instantiate a cursor object from the connection
-#         cursor = conn.cursor()
-#         cursor.execute('CREATE DATABASE ' + str(DB_NAME))
-#         cursor.execute("CREATE TABLE test (id serial PRIMARY KEY, num integer, data varchar);")
-#         # close the cursor to avoid memory leaks
-#         cursor.close()
-# 
-#         # close the connection to avoid memory leaks
-#         conn.close()
-#         return True
-#     except psycopg2.Error as err:
-#         print(err)
-#         print("Error Code:", err.pgcode)
-#         print("Message", err.pgerror)
-#         return False
-
 
 # METHOD TO CONSTRUCT DATASET FROM JSON, SEE SAMPLE, PASS IN the JSON for the Dataset and a Blank Dataset
 # See orthanc.RegisterRestCallback('/mwl/create_from_json', MWLFromJSONCreateAndSave)
@@ -285,11 +340,10 @@ def getMWLJSONDataset (AccessionNumber, StudyInstanceUID):
         return False;
     
 
-# Save Dataset to DB
+# Save Dataset to MySQL DB
 
 def SaveDatasetDB(JSON, dataset):
 
-    response = dict()
     conn = get_DB()
     if (conn):
         AccessionNumber = ""
@@ -311,7 +365,8 @@ def SaveDatasetDB(JSON, dataset):
             conn.commit()
             mycursor.close()
             conn.close()
-
+            return True
+            
         except mysql.connector.Error as err:
             print(err)
             print("Error Code:", err.errno)
@@ -319,12 +374,44 @@ def SaveDatasetDB(JSON, dataset):
             print("Message", err.msg)
             mycursor.close()
             conn.close()
-            response['DB'] = False
-            return response
-        response['DB'] = True
-        return response
+            return False
     else:
-        response['DB'] = False
+        return False
+        
+# Save Dataset to Postgres DB
+
+def SaveDatasetPostgresDB(JSON, dataset):
+
+    conn = get_PostGres_DB()
+    if (conn):
+        AccessionNumber = ""
+        if ('AccessionNumber' in JSON): AccessionNumber = JSON['AccessionNumber'] # Not sure if this belongs is SPSS
+        StudyInstanceUID = ""
+        if ('StudyInstanceUID' in JSON): StudyInstanceUID = JSON['StudyInstanceUID'] # Not sure if this belongs is SPSS
+        ScheduledProcedureStepStartDate = ""
+        AET = ""
+        if ('ScheduledProcedureStepSequence' in JSON):
+            if ('ScheduledProcedureStepStartDate' in JSON['ScheduledProcedureStepSequence'][0]):
+                ScheduledProcedureStepStartDate = JSON['ScheduledProcedureStepSequence'][0]['ScheduledProcedureStepStartDate']
+            if ('ScheduledStationAETitle' in JSON['ScheduledProcedureStepSequence'][0]):
+                AET = JSON['ScheduledProcedureStepSequence'][0]['ScheduledStationAETitle']
+        JSONinsert = json.dumps(JSON,sort_keys = True)
+        mycursor = conn.cursor()
+        datasetBytes = dataset_to_bytes(dataset)
+        try:
+            mycursor.execute('INSERT INTO mwl ("AccessionNumber", "StudyInstanceUID", "ScheduledProcedureStepStartDate", "AET", "MWLJSON", "Dataset", completed) VALUES (%s, %s, %s, %s, %s, %s, %s)', (AccessionNumber, StudyInstanceUID, ScheduledProcedureStepStartDate, AET, JSONinsert, datasetBytes, False))
+            conn.commit()
+            mycursor.close()
+            conn.close()
+            logging.info("Inserted MWL into Postgres DB, Records:  " + str(mycursor.rowcount))
+            return True
+        except psycopg2.Error as err:
+            logging.info("Postgres MWL Insertion Error:  " + str(err))
+            mycursor.close()
+            conn.close()
+            return False
+    else:
+        return False
 
 # curl -X POST -H "Content-Type: application/json" -H  "Authorization:Bearer CURLTOKEN" -H  "Token:wxwzisme" https://cayman.medical.ky/pacs-2/mwl/create_from_json -d '{"AccessionNumber":"CMACC00000002","AdditionalPatientHistory":"test","AdmittingDiagnosesDescription":"","Allergies":"","ImageComments":"Tech:  SP","MedicalAlerts":"","Modality":"MR","Occupation":"","OperatorsName":"Tech^SP","PatientAddress":"^^George Town^OS^KY1-1111^KY","PatientBirthDate":"20010101","PatientComments":"","PatientID": "CM0000001","PatientName":"Person^Test1^","PatientSex": "M","PatientSize":"","PatientTelecomInformation":"KY-9261863^WPN^PH^","PatientWeight":"","ReferringPhysicianIdentificationSequence":[  {"InstitutionName": "Cayman Medical Ltd.","PersonIdentificationCodeSequence":[{"CodeMeaning":"Local Code","CodeValue":"0001","CodingSchemeDesignator":"L"}],"PersonTelephoneNumbers":"US-6513130209^WPN^PH^sscotti@sscotti.org"}],"ReferringPhysicianName":"0001:Scotti^Stephen^Douglas^Dr.","ScheduledProcedureStepSequence":[{"Modality": "MR","ScheduledProcedureStepDescription":"MRI BRAIN / BRAIN STEM - WITHOUT CONTRAST","ScheduledProcedureStepID": "0001","ScheduledProcedureStepStartDate":"20210704","ScheduledProcedureStepStartTime":"110000","ScheduledProtocolCodeSequence":[{"CodeMeaning": "[\"70551\"]","CodeValue": "70551","CodingSchemeDesignator": "C4"}],"ScheduledStationAETitle": "NmrEsaote"}],"SpecificCharacterSet":"ISO_IR 192","StudyInstanceUID":"1.3.6.1.4.1.56016.1.1.1.55.1626553968"}'
 
@@ -333,6 +420,7 @@ def MWLFromJSONCreateAndSave(output, uri, **request):
     if request['method'] != 'POST':
         output.SendMethodNotAllowed('POST')
     else:
+        response = dict()
         query = json.loads(request['body'])
         logging.info("WORKLIST|MWLFromJSONCreateAndSave|" + json.dumps(query))
         dataset = Dataset()
@@ -350,8 +438,10 @@ def MWLFromJSONCreateAndSave(output, uri, **request):
         dataset.ContentDate = dt.strftime('%Y%m%d')
         timeStr = dt.strftime('%H%M%S.%f')  # long format with micro seconds
         dataset.ContentTime = timeStr
-        response = SaveDatasetDB(query, dataset)
-        response['status'] = ((".  Saved to PACS DB " + RISDB)  if  response['DB'] else ".  Error Saving to Orthanc RIS")
+        response["MySQL"] = SaveDatasetDB(query, dataset)
+        # Added this to save to Postgres
+        response["PostGres"] = SaveDatasetPostgresDB(query, dataset)
+        response['status'] = ("Saved to MqSQL DB:  " + str(response["MySQL"]) + "  Saved to Postgres DB:  " + str(response["PostGres"]))
         output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
 
 orthanc.RegisterRestCallback('/mwl/create_from_json', MWLFromJSONCreateAndSave)
@@ -379,6 +469,46 @@ def getActiveMWLs ():
             return False
     else:
         return False;
+        
+# SAVE NOTICE OF NEW STUDY
+
+def study_started_DB(JSON):
+
+    conn = get_DB()
+    if (conn):
+        MainDicomTags = JSON['MainDicomTags']
+        PatientMainDicomTags = JSON['PatientMainDicomTags']
+        ID = JSON['ID']
+        StudyInstanceUID = ""
+        AccessionNumber = ""
+        PatientID = ""
+        ScheduledProcedureStepStartDate = ""
+        ScheduledStationAETitle = ""
+        if ('StudyInstanceUID' in MainDicomTags): StudyInstanceUID = MainDicomTags['StudyInstanceUID'] # Not sure if this belongs is SPSS
+        if ('AccessionNumber' in MainDicomTags): AccessionNumber = MainDicomTags['AccessionNumber']
+        if ('PatientID' in PatientMainDicomTags): PatientID = PatientMainDicomTags['PatientID']
+        JSONinsert = json.dumps(JSON,sort_keys = True)
+        mycursor = conn.cursor()
+        try:
+            mycursor.execute("INSERT INTO study_first_instances (JSON, uuid, StudyInstanceUID, AccessionNumber, PatientID) VALUES (%s, %s, %s, %s, %s)", (JSONinsert, ID, StudyInstanceUID, AccessionNumber, PatientID))
+            conn.commit()
+            print("Inserting Study First Instace" + str(mycursor.rowcount))
+            mycursor.close()
+            conn.close()
+            logging.info('Saved New Study to DB')
+            return True
+
+        except mysql.connector.Error as err:
+            print(err)
+            print("Error Code:", err.errno)
+            print("SQLSTATE", err.sqlstate)
+            print("Message", err.msg)
+            mycursor.close()
+            conn.close()
+            return False
+    else:
+        logging.info('Failed to Connect to DB when recording new study.')
+        return False
      
 # DROP IN REPLACEMENT FOR THE NATIVE ORTHANC MWL PLUG-IN.  ONLY ONE CAN BE ENABLED AT A TIME.
 
@@ -404,8 +534,6 @@ if (USE_DB_MWL_SERVER == True):
                 answers.WorklistAddAnswer(query, content)
 
     orthanc.RegisterWorklistCallback(OnWorklist)
-
-
 
 
 def getTimeDifference(TimeStart, TimeEnd):
@@ -525,8 +653,10 @@ def OnChange(changeType, level, resource):
     elif changeType == orthanc.ChangeType.NEW_STUDY:
 
         study = json.loads(orthanc.RestApiGet('/studies/%s' % resource))
-        orthanc.LogWarning('NEW_STUDY from Modality, ID: %s' % resource)
-        SendNotification("NEW_STUDY from Modality:", json.dumps(study, indent = 3))
+        orthanc.LogWarning('New Study, ID: %s' % resource)
+        # Should make this optional via the Config, to save it in the DB.
+        study_started_DB(study)
+        SendNotification("New Study Created from Modality.", json.dumps(study, indent = 3))
 
     elif changeType == orthanc.ChangeType.ORTHANC_STARTED:
 
@@ -1060,50 +1190,27 @@ def attachbase64pdftostudy(query):
         attachresponse['error'] = "Missing UUID for parent study."
 
     return attachresponse;
+    
+#  To Store a PDF using BASE64 or HTML: Replace the studyuuid with the one that you want to operate on and use the commands below:
 
-def getpdf(query, output):
-
-    response = dict()
-
-    if query['method'] == "html":
-
-        try:
-            options = {
-                'page-size': 'Letter',
-                'margin-top': '0.75in',
-                'margin-right': '0.75in',
-                'margin-bottom': '0.75in',
-                'margin-left': '0.75in',
-                'footer-line':'',
-                'footer-font-size':'12',
-                'footer-center': 'Page [page] of [toPage], [date]',
-                'encoding': 'utf-8'
-            }
-            pathtobinary = shutil.which("wkhtmltopdf")
-            config = pdfkit.configuration(wkhtmltopdf=pathtobinary)
-            pdf = pdfkit.from_string(query['html'], False,options=options)
-            encoded = base64.b64encode(pdf).decode()
-            # If attach flag is 1 then attach it to the studyuuid
-
-            if query['attach'] == 1:
-                query['base64'] = encoded
-                response['attachresponse'] = attachbase64pdftostudy(query)
-            if query['return'] == 1:
-                response['base64'] = encoded
-            output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
-
-        except Exception as e:
-
-            response['error'] = str(e)
-            output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
-
-    elif query['method'] == "base64":
-        response['attachresponse'] = attachbase64pdftostudy(query)
-        output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
-    else:
-        response['error'] = "Invalid Method"
-        output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
-
+# Hello World base64 PDF:  
+# 
+# curl -k http://localhost:8042/pdfkit/htmltopdf -d  '{
+# "method":"base64",
+# "title":"BASE64 TO PDF",
+# "author": "Stephen D. Scotti",
+# "studyuuid":"d8cadbbc-ad5e1f78-d6361373-86f22b9f-8c0100e2",
+# "base64":"JVBERi0xLjcKCjEgMCBvYmogICUgZW50cnkgcG9pbnQKPDwKICAvVHlwZSAvQ2F0YWxvZwogIC9QYWdlcyAyIDAgUgo+PgplbmRvYmoKCjIgMCBvYmoKPDwKICAvVHlwZSAvUGFnZXMKICAvTWVkaWFCb3ggWyAwIDAgMjAwIDIwMCBdCiAgL0NvdW50IDEKICAvS2lkcyBbIDMgMCBSIF0KPj4KZW5kb2JqCgozIDAgb2JqCjw8CiAgL1R5cGUgL1BhZ2UKICAvUGFyZW50IDIgMCBSCiAgL1Jlc291cmNlcyA8PAogICAgL0ZvbnQgPDwKICAgICAgL0YxIDQgMCBSIAogICAgPj4KICA+PgogIC9Db250ZW50cyA1IDAgUgo+PgplbmRvYmoKCjQgMCBvYmoKPDwKICAvVHlwZSAvRm9udAogIC9TdWJ0eXBlIC9UeXBlMQogIC9CYXNlRm9udCAvVGltZXMtUm9tYW4KPj4KZW5kb2JqCgo1IDAgb2JqICAlIHBhZ2UgY29udGVudAo8PAogIC9MZW5ndGggNDQKPj4Kc3RyZWFtCkJUCjcwIDUwIFRECi9GMSAxMiBUZgooSGVsbG8sIHdvcmxkISkgVGoKRVQKZW5kc3RyZWFtCmVuZG9iagoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDEwIDAwMDAwIG4gCjAwMDAwMDAwNzkgMDAwMDAgbiAKMDAwMDAwMDE3MyAwMDAwMCBuIAowMDAwMDAwMzAxIDAwMDAwIG4gCjAwMDAwMDAzODAgMDAwMDAgbiAKdHJhaWxlcgo8PAogIC9TaXplIDYKICAvUm9vdCAxIDAgUgo+PgpzdGFydHhyZWYKNDkyCiUlRU9G","return":1,"attach":1
+# }'
+# 
+# curl -k http://localhost:8042/pdfkit/htmltopdf -d '{
+# "method":"html","title":"HTML To PDF",
+# "author": "Stephen D. Scotti",
+# "studyuuid":"d8cadbbc-ad5e1f78-d6361373-86f22b9f-8c0100e2",
+# "html":"Basically put any valid HTML, including CSS that can be rendered by wkhtmltopdf",
+# "return":1,
+# "attach":1
+# }'
 
 def HTMLTOPDF(output, uri, **request):
 
@@ -1111,14 +1218,52 @@ def HTMLTOPDF(output, uri, **request):
         output.SendMethodNotAllowed('POST')
     else:
         query = json.loads(request['body']) # allows control characters ?
-        pdf = getpdf(query, output)
+        response = dict()
+        if query['method'] == "html":
+            try:
+                options = {
+                    'page-size': 'Letter',
+                    'margin-top': '0.75in',
+                    'margin-right': '0.75in',
+                    'margin-bottom': '0.75in',
+                    'margin-left': '0.75in',
+                    'footer-line':'',
+                    'footer-font-size':'12',
+                    'footer-center': 'Page [page] of [toPage], [date]',
+                    'encoding': 'utf-8'
+                }
+                pathtobinary = shutil.which("wkhtmltopdf")
+                config = pdfkit.configuration(wkhtmltopdf=pathtobinary)
+                pdf = pdfkit.from_string(query['html'], False,options=options)
+                encoded = base64.b64encode(pdf).decode()
+                # If attach flag is 1 then attach it to the studyuuid
+
+                if query['attach'] == 1:
+                    query['base64'] = encoded
+                    response['attachresponse'] = attachbase64pdftostudy(query)
+                if query['return'] == 1:
+                    response['base64'] = encoded
+                output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
+
+            except Exception as e:
+
+                response['error'] = str(e)
+                output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
+
+        elif query['method'] == "base64":
+            response['attachresponse'] = attachbase64pdftostudy(query)
+            output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
+        else:
+            response['error'] = "Invalid Method"
+            output.AnswerBuffer(json.dumps(response, indent = 3), 'application/json')
 
 orthanc.RegisterRestCallback('/pdfkit/htmltopdf', HTMLTOPDF)
 
 
-# Intercept native method to enable logging, custom .zip archive creation, e.g. with Radiant Viewer
+# INTERCEPT NATIVE METHOD TO ENABLE LOGGING, CUSTOM .ZIP ARCHIVE CREATION, E.G. WITH RADIANT VIEWER
+# Easily customized to add additional optional files to the download packaged up as an archive.
 
-# curl -k -v https://localhost:8042/studies/8a8cf898-ca27c490-d0c7058c-929d0581-2bbf104d/archive > Study.zip
+# curl -k -v http://localhost:8042/studies/d8cadbbc-ad5e1f78-d6361373-86f22b9f-8c0100e2/archive > Study.zip
 
 def OnDownloadStudyArchive(output, uri, **request):
 
@@ -1134,18 +1279,24 @@ def OnDownloadStudyArchive(output, uri, **request):
     with ZipFile('/python/radiant_cd.zip', 'r') as radiant_zip:
         with ZipFile(new_zip, 'w') as new_archive:
             for item in radiant_zip.filelist:
-                print(item.filename)
-                new_archive.writestr(item, radiant_zip.read(item.filename))
-            #  Important to name it 'dcmdata.zip' since Radiant will auto-read that
-            #  Without having to extract it.
+                #  To get rid of '__MACOSX' files skip them here
+                if '__MACOSX' not in item.filename:
+                    logging.info("Adding " +item.filename+ " to archive")
+                    new_archive.writestr(item, radiant_zip.read(item.filename))
+                else:
+                    logging.info("Skipping " +item.filename+ ", it is a Mac OS file remnant.")
             new_archive.writestr('dcmdata.zip', archive)
+            # Important to read as binary, otherwise the codec fails.
+            f = open("/python/ReadMe.pdf", "rb")
+            new_archive.writestr('ReadMe.pdf', f.read())
     output.AnswerBuffer(new_zip.getvalue(), 'application/zip')
 
 orthanc.RegisterRestCallback('/studies/(.*)/archive', OnDownloadStudyArchive)
 
-# MedDream Custom Endpoint
+# MEDDREAM CUSTOM ENDPOINT
 
 def GetStudyInfo(output, uri, **request):
+
     studyId = request['groups'][0]
     info = []
     instances = orthanc.RestApiGet('/studies/%s/instances?expand' % studyId)
@@ -1173,7 +1324,7 @@ def GetStudyInfo(output, uri, **request):
 orthanc.RegisterRestCallback('/studies/(.*)/info', GetStudyInfo)
 
 
-# DISABLE FOR Now, Generates Documentation on Startup
+# DISABLE FOR NOW, GENERATES DOCUMENTATION ON STARTUP
 
 # for (name, obj) in inspect.getmembers(orthanc):
 #     if inspect.isroutine(obj):
