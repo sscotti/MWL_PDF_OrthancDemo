@@ -121,7 +121,7 @@
 	"DicomModalitiesInDatabase" : false,
 	
     // The list of the known DICOM modalities
-    
+    // Don't forget to adjust if you implement TLS DICOM
     "DicomModalities" : {
 
         "SELF" : {
@@ -134,20 +134,8 @@
         "AllowFind" : true,
         "AllowMove" : true,
         "AllowStore" : true,
-        "UseDicomTls" : true
-        },
-        
-        "IMAC" : {
-
-        "AET" : "Stephens-iMac",
-        "Port" : 11112,
-        "Host" : "192.168.0.208",
-        "Manufacturer" : "Generic",
-        "AllowEcho" : true,
-        "AllowFind" : true,
-        "AllowMove" : true,
-        "AllowStore" : true,
         "UseDicomTls" : false
+        
         }
     },
     
@@ -170,8 +158,8 @@
      * The "Timeout" option allows one to overwrite the global value
      * "HttpTimeout" on a per-peer basis.
      **/
-    "peer" : {
-       "Url" : "http://127.0.0.1:8043/",
+    "SELF" : {
+       "Url" : "http://127.0.0.1:8042/",
        "Username" : "alice",
        "Password" : "alicePassword",
        "HttpHeaders" : { "Token" : "Hello world" },
