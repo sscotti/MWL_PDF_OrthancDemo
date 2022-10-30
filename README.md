@@ -182,6 +182,6 @@ curl -k http://localhost:8042/make_key_image -d '{
 
 #### Custom Archive called as usual:
 
-curl -k -v http://localhost:8042/studies/8a8cf898-ca27c490-d0c7058c-929d0581-2bbf104d/archive > Study.zip
+curl -k -v http://localhost:8042/studies/orthanc_uuid/archive > Study.zip
 
 The Python Plug-in is configured to create a custom archive having the Radiant Viewer and the archive in a single .zip file
