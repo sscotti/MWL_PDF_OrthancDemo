@@ -167,4 +167,5 @@ services:
     volumes:
       - ./meddream/application.properties:/opt/meddream/application.properties
       - ./meddream/license:/opt/meddream/license
+      - ./meddream/system.json:/opt/meddream/sys/settings/system.json
 

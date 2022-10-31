@@ -1,0 +1,72 @@
+{
+	"disableMultiFrameVideoAutoLoad": false,
+	"threeDimensionServiceIntegration": {
+		"serverIP": null,
+		"port": null,
+		"protocol": null,
+		"pathPrefix": null,
+		"pathPrefixReplaceTo": null
+	},
+	"features": {
+		"patientHistory": false,
+		"keyObjectAndPresentationStateQuickSave": true,
+		"keyObjects": true,
+		"presentationState": true,
+		"searchSettings": true,
+		"viewerSettings": true,
+		"reportSettings": true,
+		"hangingProtocolsSettings": true,
+		"export": true,
+		"archive": true,
+		"search": true,
+		"reports": false,
+		"liveShare": false,
+		"openTabsTrackingMethod": "NONE",
+		"batchImageRequests": true,
+		"prepareInstances": false,
+		"thumbnailsPerSeries": "FIRST",
+		"summaryThumbnailsFor": ["CT", "MR", "PT", "NM"],
+		"preloadSeries": "ON",
+		"boundingBoxAnnotations": true,
+		"viewToClipboard": "IMAGE",
+		"pngPSToClipboard": "NONE",
+		"showCalculatedFps": true,
+		"viewToDICOM": false,
+		"mistMpr3D": true
+	},
+	"blackListedSopClasses": [],
+    "forwardPacs": [{
+        "storeScpIp": "172.23.0.7",
+        "storeScpPort": "4242",
+        "storeScpAet": "PACS",
+        "description": "Orthanc"
+    }],
+	"languages": ["en"],
+	"dicomLibraryConfiguration": {
+		"dicomLibrarySender": null,
+		"dicomLibrarySubject": null,
+		"languages": null,
+		"language": null
+	},
+	"asynchronousStudyLoading": false,
+	"formatIntegrationLinkInViewer": false,
+	"requestsConfig": {
+		"maximumMetadataStreams": 5,
+		"maximumPixelStreams": 15,
+		"maximumMultiFrameStreams": 4,
+		"batchSizeMb": 5,
+		"multiFrameBatchSizeMb": 2
+	},
+	"workersConfig": {
+		"maxWorkers": "50%",
+		"maxSegmentationWorkers": "50%"
+	},
+	"cacheSupervisorConfig": {
+		"enabled": false,
+		"runFrequencyInSec": 10
+	},
+	"personNameConfiguration": {
+		"formatIn": null,
+		"formatOut": null
+	}
+}

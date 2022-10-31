@@ -59,21 +59,22 @@ def get_current_datetimestring():
 logging.basicConfig(filename='/etc/orthanc/logs/' + get_current_datetimestring() + '_custom.log', level=logging.DEBUG, format ='%(asctime)s | %(name)s | %(levelname)-8s | %(message)s') #  encoding='utf-8' only added in python v 3.9
 logging.info('Date/Time|Name|Level|CATEGORY|SUBCATEGORY|MESSAGE')
 
-# Get the Config Items from the orthanc.json file, used mostly for the RISDB settings and the WORKLIST_DIR, which is actually just the default location in Docker, mapped to some directory on the host system when using Docker.
+# GET THE ORTHANC CONFIGURATION
+
 ORTHANC_CONFIG = json.loads(orthanc.GetConfiguration())
 
 #     "Worklists" : {
 # 
 #         "Enable": false,
-#         "Database": "/var/lib/orthanc/worklists",
+#         "Database": "/var/lib/orthanc/worklists", // if this is blank, it will fall back to /var/lib/orthanc/worklists
 #         "FilterIssuerAet": false, // Some modalities do not specify 'ScheduledStationAETitle (0040,0001)'
 #         // in the C-Find and may receive worklists not related to them.  This option
 #         // adds an extra filtering based on the AET of the modality issuing the C-Find.
 #         "LimitAnswers": 0,  // Maximum number of answers to be returned (new in release 1.7.3)
-#         "MWL_DB": "orthanc_ris"
-#         // If MWL_DB is set and not empty, then this overrides the built-in storage and finds.
+#         "MWL_DB": "orthanc_ris", // if this in blank, it will fall back to orthanc_ris
+#         "Connection":"mysql" // this can be mysql or postgres, only one is active at a time.
+#         // If Enable is false, then the native Worklists Plug-in is disabled, in which case the Python Drop-in is used.
 #     },
-# Note that if Enable is set to false, then the alternative handler in this script will handle MWLFindRequests
 
 if ('Worklists' in ORTHANC_CONFIG and 'MWL_DB' in ORTHANC_CONFIG['Worklists'] and ORTHANC_CONFIG ['Worklists']['MWL_DB'] != ""):
     RISDB = ORTHANC_CONFIG ['Worklists']['MWL_DB']
@@ -91,6 +92,11 @@ if ('Worklists' in ORTHANC_CONFIG and 'Enable' in ORTHANC_CONFIG['Worklists'] an
     USE_DB_MWL_SERVER = True
 else:
     USE_DB_MWL_SERVER = False
+    
+if ('Worklists' in ORTHANC_CONFIG and 'Connection' in ORTHANC_CONFIG['Worklists'] and ORTHANC_CONFIG ['Worklists']['Connection'] == 'mysql'):
+    MWL_CONNECTION = 'mysql'
+else:
+    MWL_CONNECTION = 'postgres'
     
 logging.info('Using DB for MWL responses is:  ' +  ("True" if  USE_DB_MWL_SERVER else  "False"))
 

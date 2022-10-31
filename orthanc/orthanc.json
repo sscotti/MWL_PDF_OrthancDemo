@@ -106,15 +106,14 @@
     "Worklists" : {
 
         "Enable": false,
-        "Database": "/var/lib/orthanc/worklists",
+        "Database": "/var/lib/orthanc/worklists", // if this is blank, it will fall back to /var/lib/orthanc/worklists
         "FilterIssuerAet": false, // Some modalities do not specify 'ScheduledStationAETitle (0040,0001)'
         // in the C-Find and may receive worklists not related to them.  This option
         // adds an extra filtering based on the AET of the modality issuing the C-Find.
         "LimitAnswers": 0,  // Maximum number of answers to be returned (new in release 1.7.3)
-        "MWL_DB": "orthanc_ris"
-        // If MWL_DB is set and not empty, then this overrides the default, which is orthanc_ris
-        // This is a custom DB to store MWL files created from JSON requests via an API
-        // and it is also then used to generate responses to C-FIND MWL's using the DB, rather than the file system.
+        "MWL_DB": "orthanc_ris", // if this in blank, it will fall back to orthanc_ris
+        "Connection":"mysql" // this can be mysql or postgres, only one is active at a time.
+        // If Enable is false, then the native Worklists Plug-in is disabled, in which case the Python Drop-in is used.
     },
     
 	"OrthancPeersInDatabase" : false,
